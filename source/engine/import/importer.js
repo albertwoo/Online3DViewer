@@ -48,7 +48,6 @@ export class ImportResult
 {
     constructor ()
     {
-        this.model = null;
         this.mainFile = null;
         this.upVector = null;
         this.usedFiles = null;
@@ -99,7 +98,6 @@ export class Importer
             new ImporterThreeAmf ()
         ];
         this.fileList = new ImporterFileList ();
-        this.model = null;
         this.usedFiles = [];
         this.missingFiles = [];
     }
@@ -180,6 +178,12 @@ export class Importer
                 RunTaskAsync (() => {
                     let mainFile = importableFiles[mainFileIndex];
                     this.ImportLoadedMainFile (mainFile, settings, callbacks);
+                    for (let i = 0; i < importableFiles.length; i++) {
+                        if (i !== mainFileIndex) {
+                            let importableFile = importableFiles[i];
+                            this.ImportLoadedMainFile (importableFile, settings, callbacks);
+                        }
+                    }
                 });
             });
         }
@@ -196,9 +200,6 @@ export class Importer
             return;
         }
 
-        this.model = null;
-        this.usedFiles = [];
-        this.missingFiles = [];
         this.usedFiles.push (mainFile.file.name);
 
         let importer = mainFile.importer;
@@ -226,10 +227,10 @@ export class Importer
                 return fileAccessor.GetFileBuffer (filePath);
             },
             onSuccess : () => {
-                this.model = importer.GetModel ();
+                const model = importer.GetModel ();
                 let result = new ImportResult ();
                 result.mainFile = mainFile.file.name;
-                result.model = this.model;
+                result.model = model;
                 result.usedFiles = this.usedFiles;
                 result.missingFiles = this.missingFiles;
                 result.upVector = importer.GetUpDirection ();

@@ -322,6 +322,38 @@ export class Viewer
         this.navigation.MoveCamera (newCamera, animation ? this.settings.animationSteps : 0);
     }
 
+    FitObjectsToWindow (animation)
+    {
+        let largestMesh = null;
+        let maxVolume = 0;
+
+        const calculate = (mesh) => {
+            if (mesh.geometry) {
+                mesh.geometry.computeBoundingBox();
+                const box = mesh.geometry.boundingBox;
+                if (box) {
+                    const size = new THREE.Vector3();
+                    box.getSize(size);
+                    const volume = size.x * size.y * size.z;
+                    if (volume > maxVolume) {
+                        maxVolume = volume;
+                        largestMesh = mesh;
+                    }
+                }
+            }
+        };
+
+        this.mainModel.EnumerateMeshes(calculate);
+        this.extraModel.Traverse(calculate);
+
+        if (largestMesh && largestMesh.geometry) {
+            largestMesh.geometry.computeBoundingSphere();
+            const boundingSphere = largestMesh.geometry.boundingSphere.clone();
+            boundingSphere.applyMatrix4(largestMesh.matrixWorld);
+            this.FitSphereToWindow (boundingSphere, animation);
+        }
+    }
+
     AdjustClippingPlanes ()
     {
         let boundingSphere = this.GetBoundingSphere ((meshUserData) => {

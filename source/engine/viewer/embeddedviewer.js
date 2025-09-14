@@ -9,6 +9,8 @@ import { Viewer } from './viewer.js';
 import { EnvironmentSettings } from './shadingmodel.js';
 import { Loc } from '../core/localization.js';
 
+import * as THREE from 'three';
+
 /**
  * This is the main object for embedding the viewer on a website.
  */
@@ -121,10 +123,12 @@ export class EmbeddedViewer
 
         this.model = null;
         let progressDiv = null;
+        let loadedModelCount = 0;
         this.modelLoader.LoadModel (inputFiles, settings, {
             onLoadStart : () => {
                 this.canvas.style.display = 'none';
                 progressDiv = document.createElement ('div');
+                progressDiv.classList.add ('ov-progress');
                 progressDiv.innerHTML = Loc ('Loading model...');
                 this.parentElement.appendChild (progressDiv);
             },
@@ -139,21 +143,64 @@ export class EmbeddedViewer
                 progressDiv.innerHTML = Loc ('Visualizing model...');
             },
             onModelFinished : (importResult, threeObject) => {
-                this.parentElement.removeChild (progressDiv);
-                this.canvas.style.display = 'inherit';
-                this.viewer.SetMainObject (threeObject);
-                let boundingSphere = this.viewer.GetBoundingSphere ((meshUserData) => {
-                    return true;
-                });
-                this.viewer.AdjustClippingPlanesToSphere (boundingSphere);
-                if (this.parameters.camera) {
-                    this.viewer.SetCamera (this.parameters.camera);
-                } else {
-                    this.viewer.SetUpVector (Direction.Y, false);
-                    this.viewer.FitSphereToWindow (boundingSphere, false);
+                if (this.parameters.getFileSettings) {
+                    const fileSettings = this.parameters.getFileSettings(importResult);
+                    if (fileSettings) {
+                        if (fileSettings.rotate) {
+                            const rotationX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0.0, 0.0, 1.0), fileSettings.rotate.x);
+                            const rotationY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0.0, 1.0, 0.0), fileSettings.rotate.y);
+                            const rotationZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1.0, 0.0, 0.0), fileSettings.rotate.z);
+                            threeObject.quaternion.multiply(rotationX);
+                            threeObject.quaternion.multiply(rotationY);
+                            threeObject.quaternion.multiply(rotationZ);
+                        }
+
+                        if (fileSettings.position)
+                        {
+                            threeObject.position.set(fileSettings.position.x, fileSettings.position.y, fileSettings.position.z);
+                        }
+
+                        if (fileSettings.color) {
+                            const color = new THREE.Color(fileSettings.color);
+                            threeObject.traverse((child) => {
+                                if (child.isMesh && child.material) {
+                                    if (Array.isArray(child.material)) {
+                                        child.material.forEach((mat) => {
+                                            if (mat.color) mat.color.copy(color);
+                                        });
+                                    } else {
+                                        if (child.material.color) {
+                                            child.material.color.copy(color);
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
                 }
 
-                this.model = importResult.model;
+                if (this.model) {
+                    this.viewer.AddExtraObject(threeObject);
+                }
+                else {
+                    this.canvas.style.display = 'inherit';
+                    this.viewer.SetMainObject (threeObject);
+
+                    if (this.parameters.camera) {
+                        this.viewer.SetCamera (this.parameters.camera);
+                    }
+                    else {
+                        this.viewer.SetUpVector (Direction.Y, false);
+                    }
+
+                    this.model = importResult.model;
+                }
+
+                if (++loadedModelCount === inputFiles.length) {
+                    this.parentElement.removeChild (progressDiv);
+                    this.viewer.FitObjectsToWindow();
+                }
+
                 if (this.parameters.onModelLoaded) {
                     this.parameters.onModelLoaded ();
                 }
