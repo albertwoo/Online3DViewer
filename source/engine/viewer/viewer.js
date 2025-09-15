@@ -324,34 +324,19 @@ export class Viewer
 
     FitObjectsToWindow (animation)
     {
-        let largestMesh = null;
-        let maxVolume = 0;
+        const boundingBox = new THREE.Box3 ();
 
         const calculate = (mesh) => {
-            if (mesh.geometry) {
-                mesh.geometry.computeBoundingBox();
-                const box = mesh.geometry.boundingBox;
-                if (box) {
-                    const size = new THREE.Vector3();
-                    box.getSize(size);
-                    const volume = size.x * size.y * size.z;
-                    if (volume > maxVolume) {
-                        maxVolume = volume;
-                        largestMesh = mesh;
-                    }
-                }
-            }
+            boundingBox.union (new THREE.Box3 ().setFromObject (mesh));
         };
 
         this.mainModel.EnumerateMeshes(calculate);
         this.extraModel.Traverse(calculate);
 
-        if (largestMesh && largestMesh.geometry) {
-            largestMesh.geometry.computeBoundingSphere();
-            const boundingSphere = largestMesh.geometry.boundingSphere.clone();
-            boundingSphere.applyMatrix4(largestMesh.matrixWorld);
-            this.FitSphereToWindow (boundingSphere, animation);
-        }
+        const boundingSphere = new THREE.Sphere ();
+        boundingBox.getBoundingSphere (boundingSphere);
+        this.AdjustClippingPlanesToSphere (boundingSphere);
+        this.FitSphereToWindow (boundingSphere, animation);
     }
 
     AdjustClippingPlanes ()

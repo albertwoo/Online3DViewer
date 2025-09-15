@@ -189,6 +189,10 @@ export class EmbeddedViewer
                     if (this.parameters.camera) {
                         this.viewer.SetCamera (this.parameters.camera);
                     }
+
+                    if (this.parameters.upVector) {
+                        this.viewer.SetUpVector (this.parameters.upVector, false);
+                    }
                     else {
                         this.viewer.SetUpVector (Direction.Y, false);
                     }
@@ -196,9 +200,9 @@ export class EmbeddedViewer
                     this.model = importResult.model;
                 }
 
+                this.viewer.FitObjectsToWindow();
                 if (++loadedModelCount === inputFiles.length) {
                     this.parentElement.removeChild (progressDiv);
-                    this.viewer.FitObjectsToWindow();
                 }
 
                 if (this.parameters.onModelLoaded) {
