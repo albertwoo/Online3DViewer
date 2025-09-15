@@ -175,13 +175,13 @@ export class Importer
                     callbacks.onImportError (new ImportError (ImportErrorCode.NoImportableFile));
                     return;
                 }
-                RunTaskAsync (() => {
+                RunTaskAsync (async () => {
                     let mainFile = importableFiles[mainFileIndex];
-                    this.ImportLoadedMainFile (mainFile, settings, callbacks);
+                    await this.ImportLoadedMainFileAsync (mainFile, settings, callbacks);
                     for (let i = 0; i < importableFiles.length; i++) {
                         if (i !== mainFileIndex) {
                             let importableFile = importableFiles[i];
-                            this.ImportLoadedMainFile (importableFile, settings, callbacks);
+                            await this.ImportLoadedMainFileAsync (importableFile, settings, callbacks);
                         }
                     }
                 });
@@ -244,7 +244,23 @@ export class Importer
             },
             onComplete : () => {
                 importer.Clear ();
+                callbacks.onImportComplete ();
             }
+        });
+    }
+
+    ImportLoadedMainFileAsync (importableFile, settings, callbacks)
+    {
+        return new Promise ((resolve) => {
+            this.ImportLoadedMainFile (importableFile, settings, {
+                ...callbacks,
+                onImportComplete: () => {
+                    resolve();
+                    if (callbacks.onImportComplete) {
+                        callbacks.onImportComplete();
+                    }
+                }
+            });
         });
     }
 
