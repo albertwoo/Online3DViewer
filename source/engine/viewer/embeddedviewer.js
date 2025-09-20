@@ -8,6 +8,7 @@ import { ThreeModelLoader } from '../threejs/threemodelloader.js';
 import { Viewer } from './viewer.js';
 import { EnvironmentSettings } from './shadingmodel.js';
 import { Loc } from '../core/localization.js';
+import { ConvertColorToThreeColor } from '../threejs/threeutils.js';
 
 import * as THREE from 'three';
 
@@ -147,31 +148,59 @@ export class EmbeddedViewer
                     const fileSettings = this.parameters.getFileSettings(importResult);
                     if (fileSettings) {
                         if (fileSettings.rotate) {
-                            const rotationX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0.0, 0.0, 1.0), fileSettings.rotate.x);
-                            const rotationY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0.0, 1.0, 0.0), fileSettings.rotate.y);
-                            const rotationZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1.0, 0.0, 0.0), fileSettings.rotate.z);
-                            threeObject.quaternion.multiply(rotationX);
-                            threeObject.quaternion.multiply(rotationY);
-                            threeObject.quaternion.multiply(rotationZ);
+                            // Z -> Y -> X
+                            threeObject.rotation.z = fileSettings.rotate.z;
+                            threeObject.rotation.y = fileSettings.rotate.y;
+                            threeObject.rotation.x = fileSettings.rotate.x;
                         }
 
-                        if (fileSettings.position)
-                        {
-                            threeObject.position.set(fileSettings.position.x, fileSettings.position.y, fileSettings.position.z);
+                        if (fileSettings.position) {
+                            threeObject.position.x = fileSettings.position.x;
+                            threeObject.position.y = fileSettings.position.y;
+                            threeObject.position.z = fileSettings.position.z;
                         }
 
-                        if (fileSettings.color) {
-                            const color = new THREE.Color(fileSettings.color);
+                        let objectColor;
+                        if (fileSettings.color !== null) {
+                            objectColor = new THREE.Color(fileSettings.color);
+                        }
+                        else if (this.parameters.defaultColor) {
+                            objectColor = ConvertColorToThreeColor (this.parameters.defaultColor);
+                        }
+                        let edgeColor;
+                        if (this.parameters.edgeSettings && this.parameters.edgeSettings.edgeColor) {
+                            edgeColor = ConvertColorToThreeColor (this.parameters.edgeSettings.edgeColor);
+                        }
+                        if (objectColor) {
                             threeObject.traverse((child) => {
-                                if (child.isMesh && child.material) {
-                                    if (Array.isArray(child.material)) {
-                                        child.material.forEach((mat) => {
-                                            if (mat.color) mat.color.copy(color);
-                                        });
-                                    } else {
-                                        if (child.material.color) {
-                                            child.material.color.copy(color);
+                                if (child.isMesh) {
+                                    if (child.material) {
+                                        if (Array.isArray(child.material)) {
+                                            child.material.forEach((mat) => {
+                                                if (mat.color) mat.color.copy(objectColor);
+                                            });
                                         }
+                                        else if (child.material.color) {
+                                            child.material.color.copy(objectColor);
+                                        }
+                                    }
+
+                                    // If the mesh already has an EdgesGeometry helper
+                                    if (child.userData.edgeHelper && edgeColor) {
+                                        child.userData.edgeHelper.material.color.copy(edgeColor);
+                                    }
+                                    else if (!child.userData.edgeHelper && edgeColor) {
+                                        // Create a new edge helper if not exists
+                                        const edges = new THREE.EdgesGeometry(child.geometry);
+                                        const line = new THREE.LineSegments(
+                                            edges,
+                                            new THREE.LineBasicMaterial({ color: edgeColor })
+                                        );
+                                        line.position.copy(child.position);
+                                        line.rotation.copy(child.rotation);
+                                        line.scale.copy(child.scale);
+                                        child.add(line);
+                                        child.userData.edgeHelper = line;
                                     }
                                 }
                             });
